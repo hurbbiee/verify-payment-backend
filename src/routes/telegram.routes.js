@@ -39,7 +39,7 @@ router.post("/webhook", async (req, res) => {
   if (processed.has(updateId)) return res.sendStatus(200);
   if (processed.size >= 10000) return res.sendStatus(503);
   processed.set(updateId, now);
-    const { group, command, allowedUser: allowed, allowedChat } = require('../utils/telegram-policy').groupPolicy(m);
+    const { group, command, canVerify: allowed, allowedChat } = require('../utils/telegram-policy').groupPolicy(m);
   if (group && !['/id', '/chatid', '/start', '/v'].includes(command)) return res.sendStatus(200);
   if (group && command !== '/chatid' && !allowedChat) return res.sendStatus(200);
 let text;

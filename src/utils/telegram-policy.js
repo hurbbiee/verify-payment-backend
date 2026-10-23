@@ -20,6 +20,6 @@ function groupPolicy(message, env = process.env) {
   const allowedChat =
     !group ||
     list(env.TELEGRAM_ALLOWED_CHAT_IDS).includes(String(message.chat.id));
-  return { group, command, allowedUser, allowedChat };
+  return { group, command, allowedUser, allowedChat, canVerify: group ? allowedChat : allowedUser };
 }
 module.exports = { groupPolicy };
