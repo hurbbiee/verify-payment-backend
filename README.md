@@ -79,3 +79,11 @@ POST /api/slips/read-qr ส่ง multipart/form-data ฟิลด์ slip เ�
 ผู้ใช้ที่อยู่ใน TELEGRAM_ALLOWED_USER_IDS ส่งรูปหรือไฟล์ภาพในแชตส่วนตัวได้ ใช้ pipeline ตรวจไฟล์เดียวกับเว็บก่อนเรียก Thunder และส่งผลพร้อม application quota.used/max (รวมทั้งเว็บและ bot ในรอบบิล ไม่ใช่ยอดส่วนตัวต่อ user)
 ไม่เก็บรูปและไม่ log ข้อมูลสลิป ใช้ update_id กันประมวลผลซ้ำใน memory 24 ชั่วโมง และจำกัดหนึ่งงานต่อ user พร้อมกัน การ restart หรือหลาย instance ไม่แชร์สถานะกัน จึงยังไม่รับประกัน exactly-once ควรเพิ่ม persistent queue/dedup ก่อนใช้วงกว้าง
 หากส่งผลตอบกลับไม่สำเร็จจะไม่ตรวจใหม่อัตโนมัติ เพื่อป้องกันใช้โควต้าซ้ำ ผู้ใช้สามารถส่งรูปใหม่ด้วยตนเองได้
+
+## Telegram กลุ่ม
+
+รองรับ group และ supergroup เพิ่ม bot แล้วส่ง /chatid@qc_sleep_bot เพื่อดู chat ID (คำสั่งนี้ไม่ตรวจสลิป)
+ตั้ง TELEGRAM_ALLOWED_CHAT_IDS เป็น chat ID ที่ได้ รวมเครื่องหมายลบ เช่น -1001234567890 และคง TELEGRAM_ALLOWED_USER_IDS ของสมาชิกที่อนุญาต ต้องผ่านทั้งสองเงื่อนไขก่อนตรวจ
+ตั้ง TELEGRAM_BOT_USERNAME=qc_sleep_bot
+ส่งรูปพร้อม caption /v@qc_sleep_bot หรือ reply รูปด้วยคำสั่ง /v@qc_sleep_bot ไม่ตรวจรูปในกลุ่มอัตโนมัติ ผลธุรกรรมและโควต้ารวมจะแสดงให้สมาชิกกลุ่มเห็น หากมีการ migrate เป็น supergroup ต้องเพิ่ม chat ID ใหม่
+ถ้า bot ไม่ได้รับ caption รูปภายใต้ privacy mode ให้ใช้คำสั่งแบบ reply รูปก่อน หากยังไม่รับให้ตรวจ Privacy Mode กับ BotFather ตามเอกสาร Telegram; โค้ดยังคงตรวจเฉพาะคำสั่ง /verify ไม่ว่าบอตได้รับข้อความอื่นหรือไม่
