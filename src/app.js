@@ -11,6 +11,7 @@ function createApp(config = readEnv()) {
   app.use(helmet());
   app.use(cors({ origin: config.corsOrigin }));
   app.use(express.json({ limit: '16kb' }));
+  app.use('/api/telegram', require('./routes/telegram.routes').router);
   app.use('/api', routes);
   app.use(notFound);
   app.use(errorHandler);
