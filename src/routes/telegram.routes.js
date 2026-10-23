@@ -1,56 +1,46 @@
-const express = require("express");
-const { timingSafeEqual } = require("node:crypto");
+const express = require('express');
+const { timingSafeEqual } = require('node:crypto');
+const { telegramCall, inspectMessage } = require('../services/telegram.service');
 const router = express.Router();
+const processed = new Map();
+const busy = new Set();
 function matches(actual, expected) {
   if (!actual || !expected) return false;
-  const a = Buffer.from(actual),
-    b = Buffer.from(expected);
+  const a = Buffer.from(actual), b = Buffer.from(expected);
   return a.length === b.length && timingSafeEqual(a, b);
 }
-router.post("/webhook", async (req, res) => {
+router.post('/webhook', async (req, res) => {
   const token = process.env.TELEGRAM_BOT_TOKEN;
-  const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
-  if (!token || !secret) return res.sendStatus(503);
-  if (!matches(req.get("X-Telegram-Bot-Api-Secret-Token"), secret))
-    return res.sendStatus(403);
-  const message = req.body?.message;
-  if (
-    !message ||
-    message.chat?.type !== "private" ||
-    !Number.isSafeInteger(message.from?.id)
-  )
-    return res.sendStatus(200);
+  if (!token || !process.env.TELEGRAM_WEBHOOK_SECRET) return res.sendStatus(503);
+  if (!matches(req.get('X-Telegram-Bot-Api-Secret-Token'), process.env.TELEGRAM_WEBHOOK_SECRET)) return res.sendStatus(403);
+  const m = req.body?.message;
+  const updateId = req.body?.update_id;
+  if (!m || m.chat?.type !== 'private' || !Number.isSafeInteger(m.from?.id) || !Number.isSafeInteger(updateId)) return res.sendStatus(200);
+  const now = Date.now();
+  for (const [id, time] of processed) if (now - time > 86400000) processed.delete(id);
+  if (processed.has(updateId)) return res.sendStatus(200);
+  if (processed.size >= 10000) return res.sendStatus(503);
+  processed.set(updateId, now);
+  const command = m.text?.split(/\s/)[0]?.split('@')[0];
+  const allowed = (process.env.TELEGRAM_ALLOWED_USER_IDS ?? '').split(',').map(x => x.trim()).includes(String(m.from.id));
   let text;
-  const command = message.text?.split(/\s/)[0]?.split("@")[0];
-  if (command === "/id")
-    text = `Telegram user ID ของคุณ: ${message.from.id}\nนำค่านี้ไปตั้ง TELEGRAM_ALLOWED_USER_IDS ใน backend`;
-  else if (command === "/start")
-    text =
-      "เชื่อมต่อ SlipCheck แล้วครับ ใช้ /id เพื่อดู user ID ของคุณ ขั้นตอนนี้ยังไม่เปิดตรวจรูปสลิป";
-  else {
-    const allowed = (process.env.TELEGRAM_ALLOWED_USER_IDS ?? "")
-      .split(",")
-      .map((x) => x.trim());
-    if (!allowed.includes(String(message.from.id))) return res.sendStatus(200);
-    text =
-      "รับข้อความแล้วครับ ตอนนี้อยู่ขั้นทดสอบ webhook ยังไม่ได้เปิดตรวจสลิปผ่าน Telegram";
-  }
+  let locked = false;
   try {
-    const response = await fetch(
-      `https://api.telegram.org/bot${token}/sendMessage`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chat_id: message.chat.id, text }),
-        signal: AbortSignal.timeout(10000),
-        redirect: "error",
-      },
-    );
-    const result = await response.json();
-    if (!response.ok || !result.ok) throw new Error("Telegram reply failed");
+    if (command === '/id') text = `Telegram user ID ของคุณ: ${m.from.id}`;
+    else if (command === '/start') text = 'ยินดีต้อนรับ SlipCheck ส่งรูปสลิปเพื่อตรวจผ่าน Thunder (ใช้โควต้าบัญชีเจ้าของ bot)\nรูปจะผ่าน Telegram และ Thunder\nใช้ /id เพื่อขอสิทธิ์ใช้งาน';
+    else if (!allowed) text = 'บัญชีนี้ยังไม่ได้รับสิทธิ์ตรวจสลิป ส่ง /id แล้วติดต่อเจ้าของ bot';
+    else if (busy.has(m.from.id)) text = 'กำลังตรวจรูปก่อนหน้า กรุณารอสักครู่';
+    else {
+      busy.add(m.from.id); locked = true;
+      try { text = await inspectMessage(m, token); }
+      catch (error) { text = error.safe ? `⚠️ ${error.message}` : '⚠️ ไม่สามารถประมวลผลสลิปได้ กรุณาลองใหม่ภายหลัง'; }
+    }
+    await telegramCall(token, 'sendMessage', { chat_id: m.chat.id, text: text.slice(0, 4000) });
     res.sendStatus(200);
   } catch {
-    res.sendStatus(502);
-  }
+    // Do not re-run a chargeable verification if only the reply failed.
+    console.error('Telegram reply failed; verification will not be retried automatically');
+    res.sendStatus(200);
+  } finally { if (locked) busy.delete(m.from.id); }
 });
 module.exports = { router, matches };
