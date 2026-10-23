@@ -87,3 +87,5 @@ POST /api/slips/read-qr ส่ง multipart/form-data ฟิลด์ slip เ�
 ตั้ง TELEGRAM_BOT_USERNAME=qc_sleep_bot
 ส่งรูปพร้อม caption /v@qc_sleep_bot หรือ reply รูปด้วยคำสั่ง /v@qc_sleep_bot ไม่ตรวจรูปในกลุ่มอัตโนมัติ ผลธุรกรรมและโควต้ารวมจะแสดงให้สมาชิกกลุ่มเห็น หากมีการ migrate เป็น supergroup ต้องเพิ่ม chat ID ใหม่
 ถ้า bot ไม่ได้รับ caption รูปภายใต้ privacy mode ให้ใช้คำสั่งแบบ reply รูปก่อน หากยังไม่รับให้ตรวจ Privacy Mode กับ BotFather ตามเอกสาร Telegram; โค้ดยังคงตรวจเฉพาะคำสั่ง /verify ไม่ว่าบอตได้รับข้อความอื่นหรือไม่
+
+อัปเดตสิทธิ์กลุ่ม: สมาชิกทุกคนใน TELEGRAM_ALLOWED_CHAT_IDS ใช้ /v ได้ โดยไม่ต้องอยู่ใน TELEGRAM_ALLOWED_USER_IDS ส่วนแชตส่วนตัวยังต้องมีรายชื่อผู้ใช้อนุญาตตามเดิม ข้อความก่อนหน้าที่ระบุว่ากลุ่มต้องผ่านทั้งสองรายชื่อถูกแทนที่ด้วยเงื่อนไขนี้
