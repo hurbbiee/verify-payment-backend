@@ -1,6 +1,5 @@
 const { validateImage } = require("../middlewares/upload.middleware");
-const { verifySlip } = require("./slip.service");
-const { getUsage } = require("../providers/thunder-usage.provider");
+const { verifySlip, getProviderUsage } = require("./slip.service");
 const { formatResult } = require("../utils/telegram-result");
 const fail = (text) => Object.assign(new Error(text), { safe: true });
 async function telegramCall(token, method, body) {
@@ -18,7 +17,7 @@ async function telegramCall(token, method, body) {
   if (!response.ok || !result.ok) throw new Error("Telegram request failed");
   return result.result;
 }
-async function inspectMessage(message, token) {
+async function inspectMessage(message, token, provider = "thunder") {
   const attachment = message.photo?.at(-1) ?? message.document;
   if (!attachment?.file_id)
     return "กรุณาส่งรูปสลิป JPEG PNG หรือ WebP ขนาดไม่เกิน 4 MB";
@@ -54,8 +53,23 @@ async function inspectMessage(message, token) {
   await new Promise((resolve, reject) =>
     validateImage(req, {}, (error) => (error ? reject(error) : resolve())),
   );
-  const result = await verifySlip(req.file);
-  const usage = await getUsage().catch(() => null);
-  return formatResult(result, usage);
+  const result = await verifySlip(req.file, provider);
+  const usage = await getProviderUsage(provider, result.keyLabel);
+  const keyLine = result.keyLabel ? `\nใช้ ${result.keyLabel}` : "";
+  return `${usage.name}\n${formatResult(result)}\n\n${formatUsage(usage)}${keyLine}`;
 }
-module.exports = { telegramCall, inspectMessage };
+
+function formatUsage(usage) {
+  if (usage.status !== "ok") {
+    return `${usage.name}: ${usage.status === "not_configured" ? "ยังไม่ได้ตั้งค่า" : "ดึงโควตาไม่ได้"}`;
+  }
+  const quota = usage.provider === "slip2go"
+    ? `เหลือ ${usage.tokenRemaining} โทเคน${usage.estimatedSlips == null ? "" : ` (~${usage.estimatedSlips} สลิป)`}`
+    : `ใช้ ${usage.used} / ${usage.max ?? "ไม่จำกัด"} ครั้ง`;
+  const expiry = usage.expiresAt
+    ? new Intl.DateTimeFormat("th-TH", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Bangkok" }).format(new Date(usage.expiresAt))
+    : "ไม่ระบุ";
+  return `${usage.name}: ${quota} · หมดอายุ ${expiry}`;
+}
+
+module.exports = { telegramCall, inspectMessage, formatUsage };
