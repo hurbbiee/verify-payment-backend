@@ -18,13 +18,15 @@ async function verify(
     apiKey = process.env.THUNDER_API_KEY,
     fetchImpl = fetch,
     timeoutMs = 20000,
+    endpoint = "https://api.thunder.in.th/v2/verify/bank",
+    keyName = "THUNDER_API_KEY",
   } = {},
 ) {
   if (!apiKey?.trim())
     throw failure(
       503,
       "VERIFICATION_NOT_CONFIGURED",
-      "กรุณาตั้ง THUNDER_API_KEY ใน backend/.env",
+      `กรุณาตั้ง ${keyName} ใน backend/.env`,
     );
   const body = new FormData();
   body.append(
@@ -35,7 +37,7 @@ async function verify(
   body.append("checkDuplicate", "true");
   let response, result;
   try {
-    response = await fetchImpl("https://api.thunder.in.th/v2/verify/bank", {
+    response = await fetchImpl(endpoint, {
       method: "POST",
       headers: { Authorization: `Bearer ${apiKey.trim()}` },
       body,
@@ -62,6 +64,10 @@ async function verify(
       );
     if (code === "QUOTA_EXCEEDED")
       throw failure(503, "PROVIDER_QUOTA_EXCEEDED", "โควต้าบริการตรวจสลิปหมด");
+    if (code === "SERVICE_EXPIRED")
+      throw failure(503, "PROVIDER_PACKAGE_EXPIRED", "แพ็กเกจตรวจสลิปหมดอายุ");
+    if (code === "SLIP_PENDING")
+      throw failure(422, "SLIP_PENDING", "ธนาคารยังประมวลผลสลิปอยู่ กรุณารอสักครู่");
     if (response.status === 429)
       throw failure(
         503,

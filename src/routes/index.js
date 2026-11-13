@@ -8,7 +8,10 @@ router.get('/health', (req, res) => {
 router.get('/usage', async (req, res, next) => {
   try {
     res.set('Cache-Control', 'no-store');
-    res.json({ success: true, data: await require('../providers/thunder-usage.provider').getUsage() });
+    const data = req.query.scope === 'all'
+      ? await require('../services/slip.service').getAllUsage()
+      : await require('../providers/thunder-usage.provider').getUsage();
+    res.json({ success: true, data });
   } catch (error) { next(error); }
 });
 

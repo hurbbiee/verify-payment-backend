@@ -41,6 +41,6 @@ function formatResult(result, usage) {
     usage
       ? `📊 ใช้ไปแล้ว: ${usage.used} / ${usage.max ?? "ไม่จำกัด"} ครั้ง (โควต้ารวมรอบปัจจุบัน)`
       : "📊 จำนวนใช้งาน: ดึงข้อมูลไม่ได้",
-  ].join("\n");
+  ].slice(0, usage === undefined ? -2 : undefined).join("\n");
 }
 module.exports = { formatResult };

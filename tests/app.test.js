@@ -70,3 +70,13 @@ test('read QR returns raw payload without claiming verification', () => withServ
   assert.equal(result.verified, false);
   assert.equal(result.data.payload, 'TEST-ONLY-1234567890');
 }));
+
+test('verification accepts provider field and rejects unknown providers', () => withServer(async base => {
+  const png = await require('sharp')({ create: { width: 2, height: 2, channels: 3, background: 'white' } }).png().toBuffer();
+  const body = new FormData();
+  body.append('slip', new Blob([png]), 'slip.png');
+  body.append('provider', 'unknown');
+  const res = await fetch(`${base}/api/slips/verify`, { method: 'POST', body });
+  assert.equal(res.status, 400);
+  assert.equal((await res.json()).error.code, 'INVALID_PROVIDER');
+}));

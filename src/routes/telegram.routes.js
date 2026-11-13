@@ -3,7 +3,15 @@ const { timingSafeEqual } = require("node:crypto");
 const {
   telegramCall,
   inspectMessage,
+  formatUsage,
 } = require("../services/telegram.service");
+const { getAllUsage } = require("../services/slip.service");
+const { groupPolicy } = require("../utils/telegram-policy");
+const verifyCommands = new Map([
+  ["/v", "thunder"],
+  ["/ve", "easyslip"],
+  ["/vs", "slip2go"],
+]);
 const router = express.Router();
 const processed = new Map();
 const busy = new Set();
@@ -39,27 +47,30 @@ router.post("/webhook", async (req, res) => {
   if (processed.has(updateId)) return res.sendStatus(200);
   if (processed.size >= 10000) return res.sendStatus(503);
   processed.set(updateId, now);
-    const { group, command, canVerify: allowed, allowedChat } = require('../utils/telegram-policy').groupPolicy(m);
-  if (group && !['/id', '/chatid', '/start', '/v'].includes(command)) return res.sendStatus(200);
+  const { group, command, canVerify: allowed, allowedChat } = groupPolicy(m);
+  const provider = verifyCommands.get(command);
+  const hasCommand = (m.text ?? m.caption ?? "").startsWith("/");
+  if (group && !provider && !["/id", "/chatid", "/start", "/q"].includes(command)) return res.sendStatus(200);
+  if (!group && hasCommand && !command) return res.sendStatus(200);
   if (group && command !== '/chatid' && !allowedChat) return res.sendStatus(200);
-let text;
+  let text;
   let locked = false;
   try {
     if (command === "/chatid") text = `Chat ID: ${m.chat.id}`;
     else if (command === "/id") text = `Telegram user ID ของคุณ: ${m.from.id}`;
     else if (command === "/start")
-      text =
-        "ยินดีต้อนรับ SlipCheck ส่งรูปสลิปเพื่อตรวจผ่าน Thunder (ใช้โควต้าบัญชีเจ้าของ bot)\nรูปจะผ่าน Telegram และ Thunder\nใช้ /id เพื่อขอสิทธิ์ใช้งาน";
+      text = "SlipCheck\n/v Thunder · /ve EasySlip · /vs Slip2Go\nแนบรูปหรือ reply รูปด้วยคำสั่งที่เลือก\n/q ดูโควตาทุกเจ้า · /id ดู Telegram ID";
     else if (!allowed)
       text = "บัญชีนี้ยังไม่ได้รับสิทธิ์ตรวจสลิป ส่ง /id แล้วติดต่อเจ้าของ bot";
-    else if (group && command !== "/v") text = "ส่งรูปพร้อม caption /v@qc_sleep_bot หรือ reply รูปด้วยคำสั่งนี้ ผลตรวจจะเห็นได้ในกลุ่ม";
+    else if (command === "/q") text = (await getAllUsage()).map(formatUsage).join("\n");
+    else if (hasCommand && !provider) text = "ใช้ /v, /ve หรือ /vs เพื่อตรวจสลิป หรือ /q เพื่อดูโควตา";
     else if (busy.has(m.from.id)) text = "กำลังตรวจรูปก่อนหน้า กรุณารอสักครู่";
     else {
       busy.add(m.from.id);
       locked = true;
       try {
-        const source = group && !m.photo && !m.document ? m.reply_to_message : m;
-        text = await inspectMessage(source ?? {}, token);
+        const source = !m.photo && !m.document && provider ? m.reply_to_message : m;
+        text = await inspectMessage(source ?? {}, token, provider);
       } catch (error) {
         text = error.safe
           ? `⚠️ ${error.message}`

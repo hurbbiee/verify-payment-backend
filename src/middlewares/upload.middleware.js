@@ -45,7 +45,12 @@ async function validateImage(req, res, next) {
   }
 }
 
-function receiveSlip(req, res, next) {
+const verificationUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 4 * 1024 * 1024, files: 1, fields: 1, parts: 2, fieldSize: 32 },
+});
+
+function receive(req, res, next, parser) {
   if (!req.is("multipart/form-data"))
     return next(
       uploadError(
@@ -54,9 +59,9 @@ function receiveSlip(req, res, next) {
         "กรุณาส่งเป็น multipart/form-data",
       ),
     );
-  upload.single("slip")(req, res, (error) => {
-    if (!error) return next();
-    if (error.code === "LIMIT_FILE_SIZE")
+  parser.single("slip")(req, res, (error) => {
+    if (!error && Object.keys(req.body ?? {}).every(key => key === "provider")) return next();
+    if (error?.code === "LIMIT_FILE_SIZE")
       return next(
         uploadError(413, "FILE_TOO_LARGE", "รูปต้องมีขนาดไม่เกิน 4 MB"),
       );
@@ -69,4 +74,6 @@ function receiveSlip(req, res, next) {
     );
   });
 }
-module.exports = { receiveSlip, validateImage };
+const receiveSlip = (req, res, next) => receive(req, res, next, upload);
+const receiveVerification = (req, res, next) => receive(req, res, next, verificationUpload);
+module.exports = { receiveSlip, receiveVerification, validateImage };
